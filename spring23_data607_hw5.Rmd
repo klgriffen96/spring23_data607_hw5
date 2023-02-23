@@ -1,0 +1,124 @@
+---
+title: "Tidying and Transforming Data"
+author: "Kayleah Griffen"
+date: "2/20/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The objective of this assignment is to read in a csv file that has the flight delays for two airlines in a wide format. Then to use `tidyr` and `dplyr` to tidy and transform the data. Lastly, to perform an analysis to compare the arrival delays for the two airlines. 
+
+## Tidying and Transforming Data
+
+First, load required packages.
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(kableExtra)
+```
+
+Next, read in the csv file and take a look.
+
+```{r}
+# df <- read.csv(choose.files())
+df <-read.csv("https://raw.githubusercontent.com/klgriffen96/spring23_data607_hw5/main/flights.csv")
+kable(head(df))  |>
+  kable_styling("striped")
+```
+
+Rename headers.
+
+```{r}
+df <- df |> rename(Airline = colnames(df)[1], Status = colnames(df)[2])
+```
+
+Now, remove unnecessary blanks, fill in airlines, and ensure all are numeric.
+
+```{r}
+# Take only the rows which have values
+df <- subset(df, nchar(Status) > 0)
+
+# Fill in airline, even when it isn't there
+for (i in 1:dim(df)[1]){
+  temp <- nchar(df$Airline[i])
+  if (temp > 0) {
+    airline <- df$Airline[i]
+  } else {
+    df$Airline[i] <- airline
+  }
+}
+
+# Make sure all values are numeric
+n <- colnames(df)
+for (i in 3:length(n)){
+  df[[n[i]]] <- as.numeric(str_remove(df[[n[i]]], ","))
+}
+kable(head(df))  |>
+  kable_styling("striped")
+```
+
+Perform the pivot to go from wide format to long format so that each Airline, Airport combination is a row, then back to a wide format so that the on time and delay are their own columns.
+
+```{r}
+df_long <-df |>
+   pivot_longer(cols = Los.Angeles:Seattle,
+               names_to = "Airport", 
+               values_to = "count")
+
+df_wide <- df_long |>
+   pivot_wider(names_from = Status,
+               values_from = count
+   )
+
+kable(head(df_wide))  |>
+  kable_styling("striped")
+```
+
+## Analysis of Arrival Delays
+
+To analyze the arrival delays, do a basic comparison of the overall percent of delayed flights were for each airline, then each airline by each location.
+
+```{r}
+percent_delayed <- df_wide |>
+     group_by(Airline, Airport) |> 
+     summarize(
+         Percent_Delayed = round(`delayed`*100/(`delayed` + `on time`))
+         , .groups = "drop") |>
+    arrange(desc(Percent_Delayed))
+
+overall_delayed <- df_wide |>
+    group_by(Airline) |>
+    summarise(
+        Overall_Percent_Delayed = round(sum(`delayed`)*100/sum(`delayed` + `on time`))
+    )
+
+# Display table - head 
+kable(head(percent_delayed))  |>
+  kable_styling("striped")
+```
+
+```{r}
+# Display overall percent 
+kable(overall_delayed) |>
+  kable_styling("striped")
+```
+
+Alaska airline overall delayed about 13% of it's flights and AM West overall delayed about 11% of its flights. The highest percent of flights delayed by Alaska were to San Francisco at 17% and for AM West it was also San Francisco at 29%. 
+
+Create a bar chart showing the ratios of on-time and delayed for each location.
+
+```{r}
+ggplot(percent_delayed, aes(x=Airport, y=Percent_Delayed, fill= Airline)) + 
+    geom_bar(stat="identity" , position=position_dodge())
+```
+
+The bar chart makes it clear that across all destinations, AM West had a higher percent of delayed flights than Alaska did. This is an interesting observation because overall - Alaska had a greater percentage of delays than AM West - but when you look at each destination individually you can see that AM West had a greater percentage of delays by each destination.
+
+## Conclusion
+
+In conclusion, I read in a csv file that had the flight delays for two airlines in a wide format. Then I used `tidyr` and `dplyr` to tidy and transform the data. Lastly, I performed an analysis to compare the arrival delays for the two airlines. 
